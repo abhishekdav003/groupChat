@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { sendMessage } from "../services/messageService";
 
 const initialMessages = [
   {
@@ -45,17 +46,20 @@ function Chat() {
     });
   }, [messages]);
 
-  const handleSend = (e) => {
-    e.preventDefault();
+  const handleSend = async (e) => {
+  e.preventDefault();
 
-    if (!message.trim()) {
-      return;
-    }
+  if (!message.trim()) {
+    return;
+  }
 
-    const newMessage = {
-      id: Date.now(),
-      text: message.trim(),
-      time: new Date().toLocaleTimeString([], {
+  try {
+    const data = await sendMessage(message);
+
+    const savedMessage = {
+      id: data.data.id,
+      text: data.data.message,
+      time: new Date(data.data.createdAt).toLocaleTimeString([], {
         hour: "2-digit",
         minute: "2-digit",
       }),
@@ -64,11 +68,17 @@ function Chat() {
 
     setMessages((prevMessages) => [
       ...prevMessages,
-      newMessage,
+      savedMessage,
     ]);
 
     setMessage("");
-  };
+  } catch (error) {
+    console.error(
+      "Failed to send message:",
+      error.response?.data?.message || error.message
+    );
+  }
+};
 
   return (
     <div className="flex h-screen bg-gray-100">

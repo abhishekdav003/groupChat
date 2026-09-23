@@ -1,31 +1,45 @@
-const { DataTypes } = require("sequelize")
-const sequelize = require("../config/database")
+const { DataTypes } = require("sequelize");
+const sequelize = require("../config/database");
 
-const User = sequelize.define("User", {
-  id: {
-    type: DataTypes.INTEGER,
-    autoIncrement: true,
-    primaryKey:true
-  },
-  name: {
-    type:DataTypes.STRING,
-    allowNull:false
-  },
-  email: {
-    type: DataTypes.STRING,
-    unique: true,
-    allowNull:false
+const User = sequelize.define(
+  "User",
+  {
+    id: {
+      type: DataTypes.INTEGER,
+      primaryKey: true,
+      autoIncrement: true,
+    },
 
-  },
-  password: {
-    type: DataTypes.STRING,
-    allowNull:false
-  },
+    name: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
 
-},
+    email: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      unique: true,
+    },
+
+    password: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+  },
   {
     tableName: "users",
-    timestamps:true
-})
+    timestamps: true,
+  },
+);
 
-module.exports = User
+const Message = require("./Message");
+
+User.hasMany(Message, {
+  foreignKey: "userId",
+});
+
+Message.belongsTo(User, {
+  foreignKey: "userId",
+});
+
+module.exports = User;
