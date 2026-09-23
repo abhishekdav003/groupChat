@@ -1,10 +1,22 @@
 const messageService = require("../services/messageService");
 
+const { broadcastMessage } = require("../websocket");
+
+
 const createMessage = async (req, res) => {
   try {
     const { message } = req.body;
 
     const newMessage = await messageService.createMessage(req.user.id, message);
+
+    const socketMessage = {
+      id: newMessage.id,
+      userId: newMessage.userId,
+      message: newMessage.message,
+      createdAt: newMessage.createdAt,
+    };
+
+    broadcastMessage(socketMessage);
 
     res.status(201).json({
       message: "Message sent successfully",

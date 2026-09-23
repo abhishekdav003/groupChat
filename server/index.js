@@ -1,7 +1,10 @@
 require("dotenv").config();
 
+const http = require("http");
+
 const app = require("./app");
 const sequelize = require("./config/database");
+const { createWebSocketServer } = require("./websocket");
 
 require("./models/User");
 require("./models/Message");
@@ -18,7 +21,11 @@ const startServer = async () => {
 
     console.log("Database synced");
 
-    app.listen(PORT, () => {
+    const server = http.createServer(app);
+
+    createWebSocketServer(server);
+
+    server.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
     });
   } catch (error) {

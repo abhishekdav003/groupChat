@@ -1,153 +1,127 @@
 import { useEffect, useRef, useState } from "react";
-import { sendMessage, getMessages } from "../services/messageService";
+import {
+  sendMessage,
+  getMessages,
+} from "../services/messageService";
 import { getMe } from "../services/authService";
-
-
-const initialMessages = [
-  {
-    id: 1,
-    text: "Hey! How are you?",
-    time: "10:30 AM",
-    sender: "other",
-  },
-  {
-    id: 2,
-    text: "I'm good. Working on the group chat application.",
-    time: "10:31 AM",
-    sender: "me",
-  },
-  {
-    id: 3,
-    text: "Nice! How is it going?",
-    time: "10:32 AM",
-    sender: "other",
-  },
-  {
-    id: 4,
-    text: "Pretty good. I'm working on the chat UI right now.",
-    time: "10:33 AM",
-    sender: "me",
-  },
-  {
-    id: 5,
-    text: "Looks interesting 👍",
-    time: "10:34 AM",
-    sender: "other",
-  },
-];
+import socket from "../services/socket";
 
 function Chat() {
-  const [messages, setMessages] = useState(initialMessages);
+  const [messages, setMessages] = useState([]);
   const [message, setMessage] = useState("");
+  const [currentUserId, setCurrentUserId] = useState(null);
 
   const messagesEndRef = useRef(null);
 
+  // Load current user and messages
+  useEffect(() => {
+    const loadMessages = async () => {
+      try {
+        const [messageData, userData] = await Promise.all([
+          getMessages(),
+          getMe(),
+        ]);
+
+        const userId = userData.user.id;
+
+        setCurrentUserId(userId);
+
+        const formattedMessages = messageData.data.map((item) => ({
+          id: item.id,
+          text: item.message,
+          time: new Date(item.createdAt).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+          sender:
+            item.User.id === userId ? "me" : "other",
+        }));
+
+        setMessages(formattedMessages);
+      } catch (error) {
+        console.error(
+          "Failed to load messages:",
+          error.response?.data?.message || error.message
+        );
+      }
+    };
+
+    loadMessages();
+  }, []);
+
+  // Receive real-time messages
+  useEffect(() => {
+    const handleSocketMessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+
+        const newMessage = {
+          id: data.id,
+          text: data.message,
+          time: new Date(data.createdAt).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+          sender:
+            data.userId === currentUserId ? "me" : "other",
+        };
+
+        setMessages((prevMessages) => [
+          ...prevMessages,
+          newMessage,
+        ]);
+      } catch (error) {
+        console.error(
+          "Failed to process WebSocket message:",
+          error
+        );
+      }
+    };
+
+    socket.addEventListener(
+      "message",
+      handleSocketMessage
+    );
+
+    return () => {
+      socket.removeEventListener(
+        "message",
+        handleSocketMessage
+      );
+    };
+  }, [currentUserId]);
+
+  // Scroll to latest message
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({
       behavior: "smooth",
     });
   }, [messages]);
 
-  useEffect(() => {
-  const loadMessages = async () => {
-    try {
-      const data = await getMessages();
-
-      const formattedMessages = data.data.map((item) => ({
-        id: item.id,
-        text: item.message,
-        time: new Date(item.createdAt).toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-        sender: "me",
-      }));
-
-      setMessages(formattedMessages);
-    } catch (error) {
-      console.error(
-        "Failed to load messages:",
-        error.response?.data?.message || error.message
-      );
-    }
-  };
-
-  loadMessages();
-  }, []);
-  
-  useEffect(() => {
-  const loadMessages = async () => {
-    try {
-      const [messageData, userData] = await Promise.all([
-        getMessages(),
-        getMe(),
-      ]);
-
-      const currentUserId = userData.user.id;
-
-      const formattedMessages = messageData.data.map((item) => ({
-        id: item.id,
-        text: item.message,
-        time: new Date(item.createdAt).toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-        sender:
-          item.User.id === currentUserId ? "me" : "other",
-      }));
-
-      setMessages(formattedMessages);
-    } catch (error) {
-      console.error(
-        "Failed to load messages:",
-        error.response?.data?.message || error.message
-      );
-    }
-  };
-
-  loadMessages();
-}, []);
-
+  // Send message
   const handleSend = async (e) => {
-  e.preventDefault();
+    e.preventDefault();
 
-  if (!message.trim()) {
-    return;
-  }
+    if (!message.trim()) {
+      return;
+    }
 
-  try {
-    const data = await sendMessage(message);
+    try {
+      await sendMessage(message);
 
-    const savedMessage = {
-      id: data.data.id,
-      text: data.data.message,
-      time: new Date(data.data.createdAt).toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-      sender: "me",
-    };
-
-    setMessages((prevMessages) => [
-      ...prevMessages,
-      savedMessage,
-    ]);
-
-    setMessage("");
-  } catch (error) {
-    console.error(
-      "Failed to send message:",
-      error.response?.data?.message || error.message
-    );
-  }
-};
+      setMessage("");
+    } catch (error) {
+      console.error(
+        "Failed to send message:",
+        error.response?.data?.message || error.message
+      );
+    }
+  };
 
   return (
     <div className="flex h-screen bg-gray-100">
-
       {/* Sidebar */}
       <aside className="hidden w-72 border-r bg-white md:block">
-
         <div className="border-b px-5 py-5">
           <h1 className="text-xl font-bold text-gray-800">
             Group Chat
@@ -160,7 +134,6 @@ function Chat() {
 
         <div className="border-b bg-gray-50 px-5 py-4">
           <div className="flex items-center gap-3">
-
             <div className="flex h-11 w-11 items-center justify-center rounded-full bg-blue-600 font-semibold text-white">
               GC
             </div>
@@ -174,18 +147,14 @@ function Chat() {
                 5 members
               </p>
             </div>
-
           </div>
         </div>
-
       </aside>
 
       {/* Chat */}
       <section className="flex min-w-0 flex-1 flex-col">
-
         {/* Chat Header */}
         <header className="flex items-center border-b bg-white px-5 py-4 shadow-sm">
-
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white">
             GC
           </div>
@@ -199,14 +168,11 @@ function Chat() {
               Online
             </p>
           </div>
-
         </header>
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto bg-gray-100 px-4 py-6 md:px-8">
-
           <div className="mx-auto flex max-w-4xl flex-col gap-3">
-
             {messages.map((item) => (
               <div
                 key={item.id}
@@ -216,7 +182,6 @@ function Chat() {
                     : "justify-start"
                 }`}
               >
-
                 <div
                   className={`max-w-[75%] rounded-2xl px-4 py-3 shadow-sm ${
                     item.sender === "me"
@@ -224,7 +189,6 @@ function Chat() {
                       : "rounded-bl-md bg-white text-gray-800"
                   }`}
                 >
-
                   <p className="break-words text-sm leading-6">
                     {item.text}
                   </p>
@@ -238,26 +202,20 @@ function Chat() {
                   >
                     {item.time}
                   </p>
-
                 </div>
-
               </div>
             ))}
 
             <div ref={messagesEndRef} />
-
           </div>
-
         </div>
 
         {/* Message Input */}
         <div className="border-t bg-white px-4 py-4 md:px-8">
-
           <form
             onSubmit={handleSend}
             className="mx-auto flex max-w-4xl items-center gap-3"
           >
-
             <input
               type="text"
               value={message}
@@ -272,13 +230,9 @@ function Chat() {
             >
               →
             </button>
-
           </form>
-
         </div>
-
       </section>
-
     </div>
   );
 }
