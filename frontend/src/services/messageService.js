@@ -7,3 +7,9 @@ export const sendMessage = async (message) => {
 
   return response.data;
 };
+
+export const getMessages = async () => {
+  const response = await api.get("/messages");
+
+  return response.data;
+};

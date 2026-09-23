@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { sendMessage } from "../services/messageService";
+import { sendMessage, getMessages } from "../services/messageService";
+import { getMe } from "../services/authService";
+
 
 const initialMessages = [
   {
@@ -45,6 +47,66 @@ function Chat() {
       behavior: "smooth",
     });
   }, [messages]);
+
+  useEffect(() => {
+  const loadMessages = async () => {
+    try {
+      const data = await getMessages();
+
+      const formattedMessages = data.data.map((item) => ({
+        id: item.id,
+        text: item.message,
+        time: new Date(item.createdAt).toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        sender: "me",
+      }));
+
+      setMessages(formattedMessages);
+    } catch (error) {
+      console.error(
+        "Failed to load messages:",
+        error.response?.data?.message || error.message
+      );
+    }
+  };
+
+  loadMessages();
+  }, []);
+  
+  useEffect(() => {
+  const loadMessages = async () => {
+    try {
+      const [messageData, userData] = await Promise.all([
+        getMessages(),
+        getMe(),
+      ]);
+
+      const currentUserId = userData.user.id;
+
+      const formattedMessages = messageData.data.map((item) => ({
+        id: item.id,
+        text: item.message,
+        time: new Date(item.createdAt).toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        sender:
+          item.User.id === currentUserId ? "me" : "other",
+      }));
+
+      setMessages(formattedMessages);
+    } catch (error) {
+      console.error(
+        "Failed to load messages:",
+        error.response?.data?.message || error.message
+      );
+    }
+  };
+
+  loadMessages();
+}, []);
 
   const handleSend = async (e) => {
   e.preventDefault();

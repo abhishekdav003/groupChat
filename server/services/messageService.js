@@ -13,6 +13,21 @@ const createMessage = async (userId, message) => {
   return newMessage;
 };
 
+const getMessages = async () => {
+  const messages = await Message.findAll({
+    include: [
+      {
+        model: require("../models/User"),
+        attributes: ["id", "name"],
+      },
+    ],
+    order: [["createdAt", "ASC"]],
+  });
+
+  return messages;
+};
+
 module.exports = {
   createMessage,
+  getMessages,
 };

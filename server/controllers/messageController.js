@@ -17,6 +17,22 @@ const createMessage = async (req, res) => {
   }
 };
 
+const getMessages = async (req, res) => {
+  try {
+    const messages = await messageService.getMessages();
+
+    res.status(200).json({
+      message: "Messages fetched successfully",
+      data: messages,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: error.message,
+    });
+  }
+};
+
 module.exports = {
   createMessage,
+  getMessages,
 };
