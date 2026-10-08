@@ -3,11 +3,15 @@ const cors = require('cors')
 const app = express()
 const authRoutes = require("./routes/authRoutes")
 const messageRoutes = require("./routes/messageRoutes");
+const userRoutes = require("./routes/userRoutes");
+const chatRoutes = require("./routes/chatRoutes");
 
 app.use(cors())
 app.use(express.json())
 app.use("/api/auth", authRoutes)
 app.use("/api/messages", messageRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/chat", chatRoutes);
 
 app.get("/", (req, res) => {
   res.json({

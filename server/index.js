@@ -5,9 +5,11 @@ const http = require("http");
 const app = require("./app");
 const sequelize = require("./config/database");
 const { createWebSocketServer } = require("./websocket");
+const createPersonalChatServer = require("./personalChatSocket");
 
 require("./models/User");
 require("./models/Message");
+require("./models/PersonalMessage");
 
 const PORT = process.env.PORT || 5000;
 
@@ -24,6 +26,7 @@ const startServer = async () => {
     const server = http.createServer(app);
 
     createWebSocketServer(server);
+    createPersonalChatServer(server);
 
     server.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);

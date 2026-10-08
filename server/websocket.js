@@ -5,13 +5,14 @@ let wss;
 const createWebSocketServer = (server) => {
   wss = new WebSocket.Server({
     server,
+    path: "/ws",
   });
 
   wss.on("connection", (socket) => {
-    console.log("WebSocket client connected");
+    console.log("Group WebSocket client connected");
 
     socket.on("close", () => {
-      console.log("WebSocket client disconnected");
+      console.log("Group WebSocket client disconnected");
     });
   });
 
