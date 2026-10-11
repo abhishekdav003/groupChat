@@ -14,6 +14,7 @@ require("./models/Group");
 require("./models/GroupMember");
 require("./models/GroupMessage");
 require("./models/associations");
+require("./models/MediaMessage");
 
 const PORT = process.env.PORT || 5000;
 
