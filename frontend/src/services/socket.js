@@ -1,15 +1,16 @@
-const socket = new WebSocket("ws://localhost:3000");
+// The backend WebSocket server listens on the /ws path.
+const socket = new WebSocket("ws://localhost:3000/ws");
 
 socket.onopen = () => {
-  console.log("WebSocket connected");
+  console.log("Group WebSocket connected");
 };
 
 socket.onclose = () => {
-  console.log("WebSocket disconnected");
+  console.log("Group WebSocket disconnected");
 };
 
 socket.onerror = (error) => {
-  console.error("WebSocket error:", error);
+  console.error("Group WebSocket error:", error);
 };
 
 export default socket;

@@ -1,6 +1,10 @@
+
 const { Server } = require("socket.io");
+const jwt = require("jsonwebtoken");
 
 const PersonalMessage = require("./models/PersonalMessage");
+const GroupMember = require("./models/GroupMember");
+const groupMessageService = require("./services/groupMessageService");
 
 const createPersonalChatServer = (server) => {
   const io = new Server(server, {
@@ -9,57 +13,55 @@ const createPersonalChatServer = (server) => {
     },
   });
 
+  // Authenticate socket connections
+  io.use((socket, next) => {
+    const token = socket.handshake.auth?.token;
+
+    if (!token) {
+      return next(new Error("Authentication required"));
+    }
+
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      socket.userId = decoded.id;
+      next();
+    } catch (error) {
+      next(new Error("Invalid or expired token"));
+    }
+  });
+
   io.on("connection", (socket) => {
-    console.log("Personal chat user connected:", socket.id);
+    console.log("Chat socket connected:", socket.id);
 
-    /*
-     * Join personal room
-     */
+    // Existing personal chat events
     socket.on("join_room", (roomId) => {
-      socket.join(roomId);
-
-      console.log(`${socket.id} joined room: ${roomId}`);
+      if (typeof roomId === "string" && roomId.startsWith("private_")) {
+        socket.join(roomId);
+      }
     });
 
-    /*
-     * Leave personal room
-     */
     socket.on("leave_room", (roomId) => {
       socket.leave(roomId);
-
-      console.log(`${socket.id} left room: ${roomId}`);
     });
 
-    /*
-     * Send personal message
-     */
     socket.on("send_message", async (data) => {
       try {
-        const { roomId, message, userId } = data;
+        const { roomId, message } = data || {};
 
-        if (!roomId || !message || !userId) {
+        if (
+          !roomId ||
+          typeof message !== "string" ||
+          !message.trim()
+        ) {
           return;
         }
 
-        const trimmedMessage = message.trim();
-
-        if (!trimmedMessage) {
-          return;
-        }
-
-        /*
-         * Save message in database
-         */
         const newMessage = await PersonalMessage.create({
           roomId,
-          userId,
-          message: trimmedMessage,
+          userId: socket.userId,
+          message: message.trim(),
         });
 
-        /*
-         * Send saved message to everyone
-         * inside the personal room
-         */
         io.to(roomId).emit("new_message", {
           id: newMessage.id,
           roomId: newMessage.roomId,
@@ -67,18 +69,67 @@ const createPersonalChatServer = (server) => {
           message: newMessage.message,
           createdAt: newMessage.createdAt,
         });
-
-        console.log(`Personal message saved in room ${roomId}`);
       } catch (error) {
-        console.error("Personal message error:", error);
+        console.error("Personal message error:", error.message);
       }
     });
 
-    /*
-     * Disconnect
-     */
+    // Join a custom group
+    socket.on("join_group", async ({ groupId } = {}) => {
+      try {
+        const member = await GroupMember.findOne({
+          where: {
+            groupId,
+            userId: socket.userId,
+          },
+        });
+
+        if (!member) {
+          socket.emit("group_error", {
+            message: "You are not a member of this group",
+          });
+          return;
+        }
+
+        socket.join(`group_${groupId}`);
+        socket.emit("group_joined", { groupId });
+      } catch (error) {
+        console.error("Join group error:", error.message);
+      }
+    });
+
+    // Send a custom group message
+    socket.on("send_group_message", async (data = {}) => {
+      try {
+        const { groupId, message } = data;
+
+        const savedMessage =
+          await groupMessageService.saveGroupMessage(
+            groupId,
+            socket.userId,
+            message
+          );
+
+        io.to(`group_${groupId}`).emit("group_message", {
+          id: savedMessage.id,
+          groupId: savedMessage.groupId,
+          userId: savedMessage.userId,
+          message: savedMessage.message,
+          createdAt: savedMessage.createdAt,
+        });
+      } catch (error) {
+        socket.emit("group_error", {
+          message: error.message,
+        });
+      }
+    });
+
+    socket.on("leave_group", ({ groupId } = {}) => {
+      socket.leave(`group_${groupId}`);
+    });
+
     socket.on("disconnect", () => {
-      console.log("Personal chat user disconnected:", socket.id);
+      console.log("Chat socket disconnected:", socket.id);
     });
   });
 

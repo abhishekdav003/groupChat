@@ -10,6 +10,10 @@ const createPersonalChatServer = require("./personalChatSocket");
 require("./models/User");
 require("./models/Message");
 require("./models/PersonalMessage");
+require("./models/Group");
+require("./models/GroupMember");
+require("./models/GroupMessage");
+require("./models/associations");
 
 const PORT = process.env.PORT || 5000;
 
