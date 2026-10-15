@@ -1,4 +1,3 @@
-
 import { useEffect, useRef } from "react";
 
 function ChatWindow({
@@ -12,6 +11,12 @@ function ChatWindow({
   onSelectFile,
   selectedFile,
   uploading,
+  aiSuggestions = [],
+  smartReplies = [],
+  aiLoading = false,
+  smartRepliesLoading = false,
+  onSelectSuggestion = () => {},
+  onSelectSmartReply = () => {},
 }) {
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -44,7 +49,6 @@ function ChatWindow({
         >
           {title?.charAt(0)?.toUpperCase() || "G"}
         </div>
-
         <div className="ml-3 min-w-0">
           <h2 className="truncate font-semibold text-gray-800">{title}</h2>
           <p className="text-xs text-gray-500">{subtitle}</p>
@@ -76,9 +80,7 @@ function ChatWindow({
           {messages.map((item) => (
             <div
               key={item.id}
-              className={`flex ${
-                item.sender === "me" ? "justify-end" : "justify-start"
-              }`}
+              className={`flex ${item.sender === "me" ? "justify-end" : "justify-start"}`}
             >
               <div
                 className={`max-w-[75%] rounded-2xl px-4 py-3 shadow-sm ${
@@ -94,19 +96,13 @@ function ChatWindow({
                 )}
 
                 {item.text && (
-                  <p className="break-words text-sm leading-6">
-                    {item.text}
-                  </p>
+                  <p className="break-words text-sm leading-6">{item.text}</p>
                 )}
 
                 {item.mediaUrl && (
                   <div className="mt-2">
                     {item.fileType?.startsWith("image/") ? (
-                      <a
-                        href={item.mediaUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
+                      <a href={item.mediaUrl} target="_blank" rel="noreferrer">
                         <img
                           src={item.mediaUrl}
                           alt={item.fileName || "Shared image"}
@@ -134,9 +130,7 @@ function ChatWindow({
 
                 <p
                   className={`mt-1 text-right text-[11px] ${
-                    item.sender === "me"
-                      ? "text-blue-100"
-                      : "text-gray-400"
+                    item.sender === "me" ? "text-blue-100" : "text-gray-400"
                   }`}
                 >
                   {item.time}
@@ -144,24 +138,67 @@ function ChatWindow({
               </div>
             </div>
           ))}
-
           <div ref={messagesEndRef} />
         </div>
       </div>
 
       <div className="border-t bg-white px-4 py-4 md:px-8">
+        {!selectedFile && message.trim() && (aiLoading || aiSuggestions.length > 0) && (
+          <div className="mx-auto mb-3 max-w-4xl rounded-xl border border-indigo-100 bg-indigo-50 p-3">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-xs font-semibold text-indigo-800">✨ AI writing suggestions</p>
+              {aiLoading && <span className="text-xs text-indigo-600">Thinking…</span>}
+            </div>
+            {aiSuggestions.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {aiSuggestions.map((suggestion, index) => (
+                  <button
+                    key={`${suggestion}-${index}`}
+                    type="button"
+                    onClick={() => onSelectSuggestion(suggestion)}
+                    className="rounded-full border border-indigo-200 bg-white px-3 py-1.5 text-left text-xs text-indigo-900 transition hover:bg-indigo-100"
+                    title="Add this continuation to your draft"
+                  >
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {!selectedFile && (smartRepliesLoading || smartReplies.length > 0) && (
+          <div className="mx-auto mb-3 max-w-4xl rounded-xl border border-emerald-100 bg-emerald-50 p-3">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-xs font-semibold text-emerald-800">💬 Suggested replies</p>
+              {smartRepliesLoading && <span className="text-xs text-emerald-700">Thinking…</span>}
+            </div>
+            {smartReplies.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {smartReplies.map((reply, index) => (
+                  <button
+                    key={`${reply}-${index}`}
+                    type="button"
+                    onClick={() => onSelectSmartReply(reply)}
+                    className="rounded-full border border-emerald-200 bg-white px-3 py-1.5 text-xs text-emerald-900 transition hover:bg-emerald-100"
+                    title="Use this reply in the message box"
+                  >
+                    {reply}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {selectedFile && (
           <div className="mx-auto mb-3 flex max-w-4xl items-center justify-between rounded-lg bg-gray-100 p-3">
-            <p className="truncate text-sm text-gray-700">
-              Selected: {selectedFile.name}
-            </p>
+            <p className="truncate text-sm text-gray-700">Selected: {selectedFile.name}</p>
             <button
               type="button"
               onClick={() => {
                 onSelectFile(null);
-                if (fileInputRef.current) {
-                  fileInputRef.current.value = "";
-                }
+                if (fileInputRef.current) fileInputRef.current.value = "";
               }}
               className="ml-3 text-sm text-red-600"
             >
@@ -170,20 +207,14 @@ function ChatWindow({
           </div>
         )}
 
-        <form
-          onSubmit={onSend}
-          className="mx-auto flex max-w-4xl items-center gap-3"
-        >
+        <form onSubmit={onSend} className="mx-auto flex max-w-4xl items-center gap-3">
           <input
             ref={fileInputRef}
             type="file"
             accept="image/*,video/*,application/pdf"
             className="hidden"
-            onChange={(event) => {
-              onSelectFile(event.target.files?.[0] || null);
-            }}
+            onChange={(event) => onSelectFile(event.target.files?.[0] || null)}
           />
-
           <button
             type="button"
             aria-label="Attach media"
@@ -194,20 +225,16 @@ function ChatWindow({
           >
             📎
           </button>
-
           <input
             type="text"
             value={message}
             onChange={(event) => setMessage(event.target.value)}
-            placeholder={
-              chatType === "personal" ? "Message..." : "Message group..."
-            }
+            placeholder={chatType === "personal" ? "Message..." : "Message group..."}
             className="h-12 min-w-0 flex-1 rounded-full border border-gray-300 bg-gray-50 px-5 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
           />
-
           <button
             type="submit"
-            disabled={uploading}
+            disabled={uploading || (!selectedFile && !message.trim())}
             aria-label="Send message"
             className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white transition hover:bg-blue-700 disabled:opacity-50"
           >

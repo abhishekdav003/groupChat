@@ -1,5 +1,5 @@
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { getMe } from "../services/authService";
 import { getMessages, sendMessage } from "../services/messageService";
@@ -21,6 +21,10 @@ import personalSocket from "../services/personalSocket";
 
 import ChatSidebar from "../components/ChatSidebar";
 import ChatWindow from "../components/ChatWindow";
+import {
+  getPredictiveSuggestions,
+  getSmartReplies,
+} from "../services/aiService";
 
 const formatTime = (date) =>
   new Date(date).toLocaleTimeString([], {
@@ -91,6 +95,114 @@ const loadMediaHistory = useCallback(
     : activeGroup
     ? "group"
     : "general";
+
+  // AI UI state. Suggestions are optional: AI failures never block chat.
+  const [aiSuggestions, setAiSuggestions] = useState([]);
+  const [smartReplies, setSmartReplies] = useState([]);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [smartRepliesLoading, setSmartRepliesLoading] = useState(false);
+  const lastSmartReplyKey = useRef("");
+  const activeChatKey = roomId || (activeGroup ? `group-${activeGroup.id}` : "general");
+
+  // Reset AI UI when switching conversations so old suggestions do not leak across chats.
+  useEffect(() => {
+    setAiSuggestions([]);
+    setSmartReplies([]);
+    setAiLoading(false);
+    setSmartRepliesLoading(false);
+    lastSmartReplyKey.current = "";
+  }, [activeChatKey]);
+
+  // Predictive typing: wait until the user pauses before requesting Gemini.
+  useEffect(() => {
+    const draft = message.trim();
+    if (draft.length < 3 || selectedFile) {
+      setAiSuggestions([]);
+      setAiLoading(false);
+      return undefined;
+    }
+
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        setAiLoading(true);
+        const recentMessages = messages
+          .filter((item) => item.text)
+          .slice(-5)
+          .map((item) => ({ text: item.text, sender: item.sender }));
+
+        const result = await getPredictiveSuggestions(
+          draft,
+          recentMessages,
+          "casual"
+        );
+
+        if (!cancelled) setAiSuggestions(Array.isArray(result?.suggestions) ? result.suggestions.slice(0, 3) : []);
+      } catch (error) {
+        if (!cancelled) {
+          setAiSuggestions([]);
+          console.error("AI suggestions error:", error.message);
+        }
+      } finally {
+        if (!cancelled) setAiLoading(false);
+      }
+    }, 700);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [message, messages, selectedFile, activeChatKey]);
+
+  // Smart replies are generated only for the latest incoming text message.
+  useEffect(() => {
+    let cancelled = false;
+    const latestIncoming = [...messages]
+      .reverse()
+      .find((item) => item.sender === "other" && item.text?.trim());
+
+    if (!latestIncoming) {
+      setSmartReplies([]);
+      setSmartRepliesLoading(false);
+      lastSmartReplyKey.current = "";
+      return undefined;
+    }
+
+    const requestKey = `${activeChatKey}-${latestIncoming.id}`;
+    if (lastSmartReplyKey.current === requestKey) return undefined;
+
+    lastSmartReplyKey.current = requestKey;
+    setSmartReplies([]);
+    setSmartRepliesLoading(true);
+
+    const recentMessages = messages
+      .filter((item) => item.text)
+      .slice(-5)
+      .map((item) => ({ text: item.text, sender: item.sender }));
+
+    const loadReplies = async () => {
+      try {
+        const result = await getSmartReplies(
+          latestIncoming.text,
+          recentMessages,
+          "casual"
+        );
+        if (!cancelled) setSmartReplies(Array.isArray(result?.replies) ? result.replies.slice(0, 3) : []);
+      } catch (error) {
+        if (!cancelled) {
+          setSmartReplies([]);
+          console.error("Smart replies error:", error.message);
+        }
+      } finally {
+        if (!cancelled) setSmartRepliesLoading(false);
+      }
+    };
+
+    loadReplies();
+    return () => {
+      cancelled = true;
+    };
+  }, [messages, activeChatKey]);
 
   const loadGeneralMessages = useCallback(async (userId) => {
     try {
@@ -680,6 +792,22 @@ personalSocket.emit("send_media_message", {
         onSelectFile={setSelectedFile}
         selectedFile={selectedFile}
         uploading={uploading}
+        aiSuggestions={aiSuggestions}
+        smartReplies={smartReplies}
+        aiLoading={aiLoading}
+        smartRepliesLoading={smartRepliesLoading}
+        onSelectSuggestion={(suggestion) => {
+          setMessage((current) => {
+            const trimmed = current.trimEnd();
+            const separator = trimmed && !/\s$/.test(current) ? " " : "";
+            return `${trimmed}${separator}${suggestion}`;
+          });
+          setAiSuggestions([]);
+        }}
+        onSelectSmartReply={(reply) => {
+          setMessage(reply);
+          setAiSuggestions([]);
+        }}
       />
     </div>
   );
